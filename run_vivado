@@ -1,0 +1,83 @@
+#!/bin/bash
+
+function err () {
+  printf 'Error: %s\n' >&2 "${1}"
+  return 0
+}
+
+# We require this environment variable to be set by the parent environment or
+# default to something common, try the best to find it, and if we cannot find a
+# vitis in the PATH when we're finished, abort
+TOOLS_ROOT=${TOOLS_ROOT:-'/tools'}
+
+# For now, we just set this, but should be an argument later, along with any
+# other arguments to pass along to the Vivado loader
+vivado_version='2022.1'
+
+# Vivado hard codes some paths in some shell scripts when it is installed, so we
+# duplicate that work here, but in a portable fashion (e.g., it is installed on
+# an NFS share and installed at /opt on the NFS server but the share is mounted
+# at /tools). We are essentially mimicing the outcome of these files
+
+# cat "${TOOLS_ROOT}/Xilinx/Vivado/2022.1/.settings64-Vivado.sh"
+# cat "${TOOLS_ROOT}/Xilinx/Vitis_HLS/2022.1/.settings64-Vitis_HLS.sh"
+# cat "${TOOLS_ROOT}/Xilinx/DocNav/.settings64-DocNav.sh"
+
+# Xilinx may require these to be exported to the parent environment
+XILINX_VIVADO="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}"
+XILINX_HLS="${TOOLS_ROOT}/Xilinx/Vitis_HLS/${vivado_version}"
+
+ok_to_export=0
+# Vivado expects this to have been exported
+if [[ ! -d "${XILINX_VIVADO}/bin" ]]; then
+  err "Directory not found: ${XILINX_VIVADO}/bin"
+  ok_to_export=1
+else
+  PATH="${XILINX_VIVADO}/bin:${PATH}"
+fi
+# Vitis expects this
+if [[ ! -d "${XILINX_HLS}/bin" ]]; then
+  err "Directory not found: ${XILINX_HLS}/bin"
+  ok_to_export=1
+else
+  PATH="${XILINX_HLS}/bin:${PATH}"
+fi
+if [[ ! -d "${TOOLS_ROOT}/Xilinx/DocNav" ]]; then
+  err "Directory not found: ${TOOLS_ROOT}/Xilinx/DocNav"
+  ok_to_export=1
+else
+  PATH="${TOOLS_ROOT}/Xilinx/DocNav:${PATH}"
+fi
+
+if [[ "${ok_to_export}" -ne 0 ]]; then
+  err "Xilinx directories not found. Check TOOLS_ROOT value."
+  exit 1
+fi
+
+export XILINX_VIVADO
+export XILINX_HLS
+export PATH
+
+# Also, to support the fragility that is the Vivado toolstack, export some more
+# stuff so that we can get more information about what is potentially being
+# broken under the hood
+
+# This may potentially be useful if you see strange graphics related errors
+export LIBGL_DEBUG="verbose"
+# This should always be turned on, since it enables dumping out all the shell
+# variables that the Vivado loader thinks might be useful
+export RDI_VERBOSE="True"
+
+command -v vivado >/dev/null 2>&1 || \
+  { err "Vivado not found in PATH"; exit 1; }
+command -v vitis_hls >/dev/null 2>&1 || \
+  { err "Vitis HLS not found in PATH"; exit 1; }
+
+# Vivado projects should all be built and stored in locations that are version
+# specific
+mkdir -pv "${HOME}/vivado-proj/${vivado_version}"
+pushd "${HOME}/vivado-proj/${vivado_version}" || \
+  { err "Could not change working directory"; exit 1; }
+
+exec vivado -mode gui -nolog -nojournal
+
