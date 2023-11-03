@@ -1,0 +1,33 @@
+#!/bin/bash
+
+gst_root="/usr/include/gstreamer-1.0"
+glib_root="/usr/include/glib-2.0"
+
+gst_tags="tags.gstreamer-1.0"
+glib_tags="tags.glib-2.0"
+
+# Check to make sure that 
+command -v ctags >/dev/null 2>&1 || \
+    { printf 'Error: %s\n' "No ctags installed." >&2; exit 1; }
+
+if [[ ! -d "${gst_root}" ]]; then
+    printf 'Error: Library not found at %s\n' "${gst_root}" >&2
+    exit 1;
+else
+    if ! ctags -o "${gst_tags}" -R "${gst_root}"; then
+        printf 'Error: Could not create ctags for %s\n' "${gst_root}" >&2
+        exit 1;
+    fi
+fi
+
+if [[ ! -d "${glib_root}" ]]; then
+    printf 'Error: Library not found at %s\n' "${glib_root}" >&2
+    exit 1;
+else
+    if ! ctags -o "${glib_tags}" -R "${glib_root}"; then
+        printf 'Error: Could not create ctags for %s\n' "${glib_root}" >&2
+        exit 1;
+    fi
+fi
+
+
