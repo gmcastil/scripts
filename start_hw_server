@@ -1,3 +1,14 @@
 #!/bin/bash
 
+# Kill remnants of any previous `hw_server` instances
+for hw_proc in $(pgrep -f 'Vivado.*hw_server'); do
+    kill "${hw_proc}"
+done
+
+# Find the version of Vivado that we wish to run - for now, just hard-code the
+# version of the tool
+vivado_version=2023.1
+
+source "${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/settings64.sh"
+vivado -mode batch -notrace -nolog -nojournal -source start_hw_server.tcl
 
