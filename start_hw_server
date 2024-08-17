@@ -26,6 +26,11 @@ show_hw_server_stat() {
 
     printf 'Process ID: %s\n' "${pid}"
 
+    # The hardware manager, at least the way it is begin launched, listens to
+    # all host interfaces, so just dump them all out here.  There might be a way
+    # to stipulate which network interfaces it runs on, but I haven't done that
+    # because it's typically running in a VM and I'm constantly swapping out
+    # network devices and MAC addresses
     printf '\n'
     printf 'Available interfaces:\n'
     for iface in $(hostname -I | tr ' ' '\n'); do
