@@ -1,14 +1,93 @@
 #!/bin/bash
 
-# Kill remnants of any previous `hw_server` instances
-for hw_proc in $(pgrep -f 'Vivado.*hw_server'); do
-    kill "${hw_proc}"
-done
+# shellcheck disable=SC2181
 
-# Find the version of Vivado that we wish to run - for now, just hard-code the
-# version of the tool
-vivado_version=2023.1
+err() {
+    local msg
+    msg="${1}"
+    printf 'Error: %s\n' "${msg}"
+    return 0
+}
 
-source "${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/settings64.sh"
-vivado -mode batch -notrace -nolog -nojournal -source start_hw_server.tcl
+get_hw_server_pid() {
+    local pid
+    pid=$(pgrep -f 'hw_server -d')
+    if [[ "$?" -eq 0 ]]; then
+        printf '%s' "${pid}"
+        return 0
+    else
+        return 1
+    fi
+}
+
+show_hw_server_stat() {
+    local pid
+    pid="${1}"
+
+    printf 'Process ID: %s\n' "${pid}"
+
+    printf '\n'
+    printf 'Available interfaces:\n'
+    for iface in $(hostname -I | tr ' ' '\n'); do
+        printf '  %-20s\n' "${iface}"
+    done
+
+    # Show ports that it is listening on
+    printf '\n'
+    printf 'Listening on:\n'
+    tcp_ports="$(ss -tlnp | grep "${pid}" | awk '{split($4, a, ":"); print a[2]}')"
+    for port in ${tcp_ports}; do
+        printf '  tcp: %s\n' "${port}"
+    done
+    udp_ports="$(ss -ulnp | grep "${pid}" | awk '{split($4, a, ":"); print a[2]}')"
+    for port in ${udp_ports}; do
+        printf '  udp: %s\n' "${port}"
+    done
+    printf '\n'
+}
+
+# Specify which Vivado version we are using
+vivado_version=2024.1
+vivado_root="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}"
+
+# Hardware server startup script to call Vivado with
+hw_server_tcl='start_hw_server.tcl'
+
+# Check if an existing Vivado hardware daemon is already running
+hw_server_pid="$(get_hw_server_pid)"
+if [[ "$?" -eq 0 ]]; then
+    err "Hardware server already running"
+    printf '\n'
+    show_hw_server_stat "${hw_server_pid}"
+    exit 1
+fi
+
+# Import Xilinx settings to allow us to start Vivado
+if ! source "${vivado_root}/settings64.sh"; then
+    err "Could not source ${vivado_root}/settings64.sh. Check TOOLS_ROOT."
+    exit 1
+fi
+
+# Make sure that the script we're going to fire up Vivado with exists
+if [[ ! -f "${hw_server_tcl}" ]]; then
+    err "Could not find ${hw_server_tcl} script. Cannot start harware server."
+    exit 1
+fi
+
+# Make sure Vivado is in the PATH now
+command -v vivado >/dev/null 2>&1 || \
+    { err "Could not find vivado in current PATH."; exit 1; }
+
+# Launch the hardware server in daemon mode without leaving detritus behind
+vivado -mode batch -notrace -nolog -nojournal -source "${hw_server_tcl}" >/dev/null
+
+hw_server_pid="$(get_hw_server_pid)"
+if [[ "$?" -ne 0 ]]; then
+    err "Could not start hardware server"
+    exit 1
+else
+    printf 'Hardware server started\n\n'
+    show_hw_server_stat "$(get_hw_server_pid)"
+    exit 0
+fi
 
