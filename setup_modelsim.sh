@@ -32,6 +32,7 @@ ok_to_export=0
 # exporting it later.  This is largely because a specific version of the 
 # 32-bit libfreetype library needs to be installed alongside the system version
 # and ModelSim will fail to run if it doesn't get found.
+LD_LIBRARY_PATH=/usr/local/lib
 
 # Also, even though the tools probably already set this, we set it ourselves
 # explicitly
