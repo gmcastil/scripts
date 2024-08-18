@@ -53,7 +53,7 @@ compile_unisims() {
 
     # Create an empty UNISIM library
     vlib "${unisim_dir}"
-    vmap UNISIM "${unisim_dir}"
+    #vmap UNISIM "${unisim_dir}"
 
     # From UG900 on UNISIM library
     vcom -work UNISIM "${vhdl_src_dir}/unisims/unisim_VCOMP.vhd"
@@ -132,6 +132,6 @@ mkdir -p "${lib_dir}/${vivado_version}/${sim_version}"
 # build
 compile_unisims "${lib_dir}/${vivado_version}/${sim_version}/UNISIM" | tee "build_unisim_$(timestamp).log"
 
-vmap UNISIM "${lib_dir}/${vivado_version}/${sim_version}/UNISIM"
+#vmap UNISIM "${lib_dir}/${vivado_version}/${sim_version}/UNISIM"
 compile_unimacro "${lib_dir}/${vivado_version}/${sim_version}/UNIMACRO" | tee "build_unimacro_$(timestamp).log"
 
