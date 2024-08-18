@@ -1,0 +1,4 @@
+# Ignore everything that gets built when we build simulation libaries
+build_*.log
+lib/
+
