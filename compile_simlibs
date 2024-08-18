@@ -75,10 +75,6 @@ compile_unisims() {
         fi
     done < "${unisim_vhdl_files}"
 
-    # Now, since we're going to be compiling other things in the neighborhood,
-    # let's make sure we don't inadvertently compile something into this library
-    # again. This might be already done by default.
-    chmod ugo-wx -Rf "${unisim_dir}"
     return 0
 }
 
@@ -101,7 +97,8 @@ compile_unimacro() {
 
     # Create an empty UNIMACRO library
     vlib "${unimacro_dir}"
-    vmap UNIMACRO "${unimacro_dir}"
+    # We do not need to call vmap, since library mappings are already created in
+    # the modelsim.ini that should already be here
 
     # From UG900 on UNIMACRO library
     vcom -work UNIMACRO "${vhdl_src_dir}/unimacro/unimacro_VCOMP.vhd"
@@ -116,7 +113,6 @@ compile_unimacro() {
         fi
     done < "${unimacro_vhdl_files}"
 
-    chmod ugo-wx -Rf "${unimacro_dir}"
     return 0
 }
 
