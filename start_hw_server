@@ -68,7 +68,7 @@ if [[ "$?" -eq 0 ]]; then
 fi
 
 # Import Xilinx settings to allow us to start Vivado
-if ! source "${vivado_root}/settings64.sh"; then
+if ! source "${vivado_root}/settings64.sh" >/dev/null 2>&1; then
     err "Could not source ${vivado_root}/settings64.sh. Check TOOLS_ROOT."
     exit 1
 fi
@@ -83,15 +83,17 @@ fi
 command -v vivado >/dev/null 2>&1 || \
     { err "Could not find vivado in current PATH."; exit 1; }
 
+printf 'Starting hardware server...' >&1
 # Launch the hardware server in daemon mode without leaving detritus behind
-vivado -mode batch -notrace -nolog -nojournal -source "${hw_server_tcl}" >/dev/null
+vivado -mode batch -notrace -nolog -nojournal -source "${hw_server_tcl}" >/dev/null 2>&1
 
 hw_server_pid="$(get_hw_server_pid)"
 if [[ "$?" -ne 0 ]]; then
+    printf 'FAIL\n\n'
     err "Could not start hardware server"
     exit 1
 else
-    printf 'Hardware server started\n\n'
+    printf 'OK\n'
     show_hw_server_stat "$(get_hw_server_pid)"
     exit 0
 fi
