@@ -51,6 +51,12 @@ show_hw_server_stat() {
     printf '\n'
 }
 
+# This needs to be run as a command, not sourced into a running subshell
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    printf '%s\n' "Script needs to be run as a command" >&2
+    return 1
+fi
+
 # Specify which Vivado version we are using
 vivado_version=2024.1
 vivado_root="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}"
