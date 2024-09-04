@@ -23,6 +23,7 @@ check_modelsim() {
     command -v vlog >/dev/null 2>&1 || return 1
     command -v vcom >/dev/null 2>&1 || return 1
     command -v vopt >/dev/null 2>&1 || return 1
+    command -v vcd2wlf >/dev/null 2>&1 || return 1
     return 0
 }
 
