@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Convert data from a Xilinx ILA (in VCD format) to a WLF for superior viewing
+# with Questa or ModelSim
+
+if ! source "${HOME}/github-repos/scripts/common.sh" >/dev/null 2>&1; then
+    printf '%s\n' "Error: Could not import common functions" >&2
+    exit 1
+fi
+
+if ! check_modelsim; then
+    err "Could not find ModelSim tools in current PATH"
+    exit 1
+fi
+
+vcd_file="$1"
+if [[ ! -f "$vcd_file" ]]; then
+    err "ILA capture file not found"
+    exit 1
+fi
+
+wlf_file="${vcd_file%.vcd}.wlf"
+vcd2wlf "$vcd_file" "$wlf_file"
+
+if [[ ! -f "$wlf_file" ]]; then
+    err "Could not convert VCD to WLF file"
+    exit 1
+fi
+
+exec vsim -view "$wlf_file"
+
