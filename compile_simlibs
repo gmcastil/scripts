@@ -1,6 +1,18 @@
 #!/bin/bash
 
-if ! source "common.sh" >/dev/null 2>&1; then
+# Compile various Xilinx behavioral simulation libraries using 64-bit QuestaSim
+#
+# The general approach to third-party simulation of the Xilinx simulation
+# libraries is to run the `compile_simlib` command with various arguments
+# instructing Vivado where to find and execute the simulator of choice. For
+# reasons I do not entirely understand, Vivado refuses to recognize my version
+# of the simulator, probably because the version string does not exactly match
+# what it expects to find.  The tools remain the same and one can build the
+# simulation libraries by hand if they are so inclined.
+
+script_name="$(realpath "${0}")"
+scripts_dir="$(dirname "${script_name}")"
+if ! source "${scripts_dir}/common.sh" >/dev/null 2>&1; then
     printf '%s\n' "Error: Could not import common functions" >&2
     exit 1
 fi
@@ -18,7 +30,7 @@ vivado_version="2024.1"
 # student versions). In my experience, simulation libraries need to match the
 # target simulator exactly. Playing fast and loose with tool versions, library
 # versions, source versions is a recipe for disaster.
-sim_version="modelsim_16.1"
+sim_version="questa_fe_22.2"
 
 # Root directory to place simulation libraries after compilation
 lib_dir="lib"
@@ -54,6 +66,7 @@ compile_unisims() {
 
     # Create an empty UNISIM library
     vlib "${unisim_dir}"
+    vmap UNISIM "${unisim_dir}"
 
     # From UG900 on UNISIM library
     vcom -work UNISIM "${vhdl_src_dir}/unisims/unisim_VCOMP.vhd"
@@ -97,6 +110,7 @@ compile_unimacro() {
 
     # Create an empty UNIMACRO library
     vlib "${unimacro_dir}"
+    vmap UNIMACRO "${unimacro_dir}"
 
     # From UG900 on UNIMACRO library
     vcom -work UNIMACRO "${vhdl_src_dir}/unimacro/unimacro_VCOMP.vhd"
@@ -124,9 +138,19 @@ compile_xpm() {
 
     # Create an empty XPM library
     vlib "${xpm_dir}"
+    vmap xpm "${xpm_dir}"
 
+    # VHDL component definitions (possibly unneeded?)
     vcom -work xpm "${xpm_src_dir}/xpm_VCOMP.vhd"
 
+    # XPM FIFO macros
+    vlog -work xpm -sv "${xpm_src_dir}/xpm_fifo/hdl/xpm_fifo.sv"
+
+    # XPM memory macros
+    vlog -work xpm -sv "${xpm_src_dir}/xpm_memory/hdl/xpm_memory.sv"
+
+    # XPM CDC macros
+    vlog -work xpm -sv "${xpm_src_dir}/xpm_cdc/hdl/xpm_cdc.sv"
 }
 
 # Make sure we have someplace to write to
@@ -140,7 +164,7 @@ fi
 # yet, so create it first
 mkdir -p "${lib_dir}/${vivado_version}/${sim_version}"
 
-# compile_unisims "${lib_dir}/${vivado_version}/${sim_version}/UNISIM" | tee "build_unisim_$(timestamp).log"
-# compile_unimacro "${lib_dir}/${vivado_version}/${sim_version}/UNIMACRO" | tee "build_unimacro_$(timestamp).log"
-
+compile_unisims "${lib_dir}/${vivado_version}/${sim_version}/UNISIM" | tee "build_unisim_$(timestamp).log"
+compile_unimacro "${lib_dir}/${vivado_version}/${sim_version}/UNIMACRO" | tee "build_unimacro_$(timestamp).log"
 compile_xpm "${lib_dir}/${vivado_version}/${sim_version}/xpm" | tee "build_xpm_$(timestamp).log"
+
