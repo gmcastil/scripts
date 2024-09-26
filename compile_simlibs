@@ -24,9 +24,10 @@ sim_version="modelsim_16.1"
 lib_dir="lib"
 
 # Location of Xilinx source directory, usually something containing a directory
-# like `data/verilog/src/`.  This might vary version to version and note also
-# that 
+# like `data/verilog/src/`.  Not all sources are in the same location (e.g.,
+# XPM)
 vhdl_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/vhdl/src"
+xpm_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/ip/xpm"
 
 # The files and order required to compile the various Xilinx libraries are
 # entirely speculative, but are to some text extent inferred or described in
@@ -53,7 +54,6 @@ compile_unisims() {
 
     # Create an empty UNISIM library
     vlib "${unisim_dir}"
-    #vmap UNISIM "${unisim_dir}"
 
     # From UG900 on UNISIM library
     vcom -work UNISIM "${vhdl_src_dir}/unisims/unisim_VCOMP.vhd"
@@ -97,8 +97,6 @@ compile_unimacro() {
 
     # Create an empty UNIMACRO library
     vlib "${unimacro_dir}"
-    # We do not need to call vmap, since library mappings are already created in
-    # the modelsim.ini that should already be here
 
     # From UG900 on UNIMACRO library
     vcom -work UNIMACRO "${vhdl_src_dir}/unimacro/unimacro_VCOMP.vhd"
@@ -116,6 +114,21 @@ compile_unimacro() {
     return 0
 }
 
+compile_xpm() {
+    local xpm_dir
+    xpm_dir="${1}"
+
+    if [[ -d "${xpm_dir}" ]]; then
+        rm -rf "${xpm_dir}"
+    fi
+
+    # Create an empty XPM library
+    vlib "${xpm_dir}"
+
+    vcom -work xpm "${xpm_src_dir}/xpm_VCOMP.vhd"
+
+}
+
 # Make sure we have someplace to write to
 mkdir -p "${lib_dir}"
 if [[ ! -w "${lib_dir}" ]]; then
@@ -127,11 +140,7 @@ fi
 # yet, so create it first
 mkdir -p "${lib_dir}/${vivado_version}/${sim_version}"
 
-# This last bit is a bit helter skelter - I should probably refactor all of
-# this, but I'm just trying to see if I can get the simulation libraries to
-# build
-compile_unisims "${lib_dir}/${vivado_version}/${sim_version}/UNISIM" | tee "build_unisim_$(timestamp).log"
+# compile_unisims "${lib_dir}/${vivado_version}/${sim_version}/UNISIM" | tee "build_unisim_$(timestamp).log"
+# compile_unimacro "${lib_dir}/${vivado_version}/${sim_version}/UNIMACRO" | tee "build_unimacro_$(timestamp).log"
 
-#vmap UNISIM "${lib_dir}/${vivado_version}/${sim_version}/UNISIM"
-compile_unimacro "${lib_dir}/${vivado_version}/${sim_version}/UNIMACRO" | tee "build_unimacro_$(timestamp).log"
-
+compile_xpm "${lib_dir}/${vivado_version}/${sim_version}/xpm" | tee "build_xpm_$(timestamp).log"
