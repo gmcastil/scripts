@@ -1,0 +1,68 @@
+#!/bin/bash
+
+err () {
+    local msg
+    msg="${1}"
+    printf 'Error: %s\n' "${msg}" >&2
+    return 0
+}
+
+# Replace the absolute path in a Xilinx .xpr file
+replace_path () {
+    local xpr_path
+    local xpr_filename
+    local path_attrib
+
+    xpr_path="${1}"
+    if [[ ! -f "${xpr_path}" ]]; then
+        err "No XPR file found"
+        return 1
+    fi
+
+    # Want to print out what we matched with
+    matched_string=$(grep -oE '<Project Version="[0-9]+" Minor="[0-9]+" Path="[^"]*">' "${xpr_path}")
+    if [[ -n "${matched_string}" ]]; then
+        printf 'Matched:  %s\n' "${matched_string}" >&1
+    else
+        err "No matching project element in ${xpr_path}"
+        return 1
+    fi
+
+    # Replace the path attribute
+    xpr_filename="$(basename "${xpr_path}")"
+    # shellcheck disable=SC2016
+    path_attrib='$PPRDIR/'"${xpr_filename}"
+    sed -i -E 's|(Project Version="[0-9]+" Minor="[0-9]+" Path=")[^"]*(")|\1'"${path_attrib}"'\2|' "${xpr_path}"
+
+    # Now print out what was matched
+    replaced_string=$(grep -oE '<Project Version="[0-9]+" Minor="[0-9]+" Path="[^"]*">' "${xpr_path}")
+    if [[ -n "${replaced_string}" ]]; then
+        printf 'Replaced: %s\n' "${replaced_string}" >&1
+    else
+        err "No matching project element in ${xpr_path}"
+        return 1
+    fi
+
+    return 0
+}
+
+# Ensure the script is run, not sourced
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    err "Script must be run as command and not sourced into a running subshell"
+  return 1
+fi
+
+# Check if at least one argument is supplied (may supply a list of filenames
+# later)
+if [[ "$#" -lt 1 ]]; then
+    printf 'Usage: %s <xpr_file>\n' "$(basename "$0")" >&2
+    exit 1
+fi
+
+# Replace the absolute path attribute from the project element with a relative
+# one and the $PPRDIR tool shell variable
+replace_path "${1}"
+retval="$?"
+
+exit "${retval}"
+
