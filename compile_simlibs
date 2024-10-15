@@ -23,8 +23,10 @@ if ! check_modelsim; then
 fi
 
 # Not attempting to target multiple versions of Vivado, just want to automate as
-# much of this as possible
-vivado_version="2022.1"
+# much of this as possible. Default to 2024.1 (have tested with 2022.1 and that
+# seems to build as well).
+vivado_version="${1:-2024.1}"
+printf '%s\n' "Info: Compiling simulation libraries for Vivado ${vivado_version}" >&1
 
 # Need to clearly define the tool and the tool version (e.g., 24.2 vs 24.2s or
 # student versions). In my experience, simulation libraries need to match the
@@ -42,6 +44,7 @@ lib_dir="lib"
 # like `data/verilog/src/`.  Not all sources are in the same location (e.g.,
 # XPM)
 vhdl_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/vhdl/src"
+verilog_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/verilog/src"
 xpm_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/ip/xpm"
 
 # The files and order required to compile the various Xilinx libraries are
