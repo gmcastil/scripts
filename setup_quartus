@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# 
-
 err () {
     local msg
     msg="$1"
@@ -28,7 +26,7 @@ if [[ "$LANG" != "en_US.UTF-8" ]]; then
 fi
 LC_ALL="en_US.UTF-8"
 
-LM_LICENSE_FILE="$HOME/licenses/LR-160810_License.dat"
+LM_LICENSE_FILE="$HOME/licenses/Altera-1-PR1TEF_License.dat"
 # Ensure that the license file exists
 if [[ ! -f "$LM_LICENSE_FILE" ]]; then
     err "License file not found at $LM_LICENSE_FILE"
