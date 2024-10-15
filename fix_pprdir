@@ -52,17 +52,24 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
   return 1
 fi
 
-# Check if at least one argument is supplied (may supply a list of filenames
-# later)
+# Check if at least one filename is provided
 if [[ "$#" -lt 1 ]]; then
-    printf 'Usage: %s <xpr_file>\n' "$(basename "$0")" >&2
+    printf 'Usage: %s <xpr_file> [xpr_file ...]\n' "$(basename "$0")" >&2
     exit 1
 fi
 
 # Replace the absolute path attribute from the project element with a relative
 # one and the $PPRDIR tool shell variable
-replace_path "${1}"
-retval="$?"
+for xpr_file in "${@}"; do
+    if [[ -w "${xpr_file}" ]]; then
+        if ! replace_path "${xpr_file}"; then
+            exit 1
+        fi
+    else
+        err "XPR file not found or not writable by current user: ${xpr_file}"
+        exit 1
+    fi
+done
 
-exit "${retval}"
+exit
 
