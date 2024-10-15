@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Xilinx project files (.xpr) in the root of project directories often hard code
+# the path on the host machine when it should be expanded to use a variable
+# instead. This script is intended to be run on a Xilinx project file, usually
+# prior to committing to revision control, to restore the path to what it should
+# be and to do so in a responsible way.
+
 err () {
     local msg
     msg="${1}"
