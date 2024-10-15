@@ -42,6 +42,7 @@ lib_dir="lib"
 # like `data/verilog/src/`.  Not all sources are in the same location (e.g.,
 # XPM)
 vhdl_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/vhdl/src"
+verilog_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/verilog/src"
 xpm_src_dir="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}/data/ip/xpm"
 
 # The files and order required to compile the various Xilinx libraries are
@@ -153,6 +154,8 @@ compile_xpm() {
     vlog -work xpm -sv "${xpm_src_dir}/xpm_memory/hdl/xpm_memory.sv"
     # XPM CDC macros
     vlog -work xpm -sv "${xpm_src_dir}/xpm_cdc/hdl/xpm_cdc.sv"
+    # The GSR needs to be included in this library as well
+    vlog -work xpm "${verilog_src_dir}/glbl.v"
 }
 
 # Make sure we have someplace to write to
