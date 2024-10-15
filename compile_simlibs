@@ -24,13 +24,16 @@ fi
 
 # Not attempting to target multiple versions of Vivado, just want to automate as
 # much of this as possible
-vivado_version="2024.1"
+vivado_version="2022.1"
 
 # Need to clearly define the tool and the tool version (e.g., 24.2 vs 24.2s or
 # student versions). In my experience, simulation libraries need to match the
 # target simulator exactly. Playing fast and loose with tool versions, library
 # versions, source versions is a recipe for disaster.
-sim_version="questa_fe_22.2"
+questa_version="22.2"
+# This should really be determined automatically, but it's fine for now I
+# suppose
+sim_version="questa_fe"
 
 # Root directory to place simulation libraries after compilation
 lib_dir="lib"
@@ -71,10 +74,11 @@ compile_unisims() {
     # From UG900 on UNISIM library
     vcom -work UNISIM "${vhdl_src_dir}/unisims/unisim_VCOMP.vhd"
     vcom -work UNISIM "${vhdl_src_dir}/unisims/unisim_VPKG.vhd"
-    # These are probably to support older devices like the Virtex-5 without
-    # needing to install ISE.
-    vcom -work UNISIM "${vhdl_src_dir}/unisims/retarget_VCOMP.vhd"
-    vcom -work UNISIM "${vhdl_src_dir}/unisims/unisim_retarget_VCOMP.vhd"
+    # These will generate a warning about redefinition of symbols from the
+    # earleir two that were compiled and can be ignored. These HAVE to be
+    # compiled after the previous two
+    vcom -work UNISIM -suppress 1615 "${vhdl_src_dir}/unisims/retarget_VCOMP.vhd"
+    vcom -work UNISIM -suppress 1615 "${vhdl_src_dir}/unisims/unisim_retarget_VCOMP.vhd"
 
     # Iterate through the VHDL source files and compile them in the order that
     # Xilinx presumably expects us to
@@ -128,6 +132,7 @@ compile_unimacro() {
     return 0
 }
 
+# Note that the XPM macros require SystemVerilog support to compile
 compile_xpm() {
     local xpm_dir
     xpm_dir="${1}"
@@ -140,15 +145,12 @@ compile_xpm() {
     vlib "${xpm_dir}"
     vmap xpm "${xpm_dir}"
 
-    # VHDL component definitions (possibly unneeded?)
+    # VHDL component definitions
     vcom -work xpm "${xpm_src_dir}/xpm_VCOMP.vhd"
-
     # XPM FIFO macros
     vlog -work xpm -sv "${xpm_src_dir}/xpm_fifo/hdl/xpm_fifo.sv"
-
     # XPM memory macros
     vlog -work xpm -sv "${xpm_src_dir}/xpm_memory/hdl/xpm_memory.sv"
-
     # XPM CDC macros
     vlog -work xpm -sv "${xpm_src_dir}/xpm_cdc/hdl/xpm_cdc.sv"
 }
@@ -162,9 +164,12 @@ fi
 
 # The vlib command refuses to create libraries in locations that don't exist
 # yet, so create it first
-mkdir -p "${lib_dir}/${vivado_version}/${sim_version}"
+dest_dir="${lib_dir}/${vivado_version}/${sim_version}/${questa_version}"
+mkdir -p "${dest_dir}"
 
-compile_unisims "${lib_dir}/${vivado_version}/${sim_version}/UNISIM" | tee "build_unisim_$(timestamp).log"
-compile_unimacro "${lib_dir}/${vivado_version}/${sim_version}/UNIMACRO" | tee "build_unimacro_$(timestamp).log"
-compile_xpm "${lib_dir}/${vivado_version}/${sim_version}/xpm" | tee "build_xpm_$(timestamp).log"
+# Compile Xilinx libraries and put the build logs in the root of the destination
+# directory
+compile_unisims "${dest_dir}/UNISIM" | tee "${dest_dir}/build_unisim_$(timestamp).log"
+compile_unimacro "${dest_dir}/UNIMACRO" | tee "${dest_dir}/build_unimacro_$(timestamp).log"
+compile_xpm "${dest_dir}/xpm" | tee "${dest_dir}/build_xpm_$(timestamp).log"
 
