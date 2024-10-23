@@ -1,18 +1,22 @@
 #!/bin/bash
 
-function err () {
-  printf 'ERROR: %s\n' >&2 "${1}"
-  return 0
-}
+# Run various versions of Vivado with a sanely defined environment and useful
+# debugging options
+
+script_name="$(realpath "${0}")"
+scripts_dir="$(dirname "${script_name}")"
+if ! source "${scripts_dir}/common.sh" >/dev/null 2>&1; then
+    printf '%s\n' "Error: Could not import common functions" >&2
+    exit 1
+fi
 
 # We require this environment variable to be set by the parent environment or
 # default to something common, try the best to find it, and if we cannot find a
-# vitis in the PATH when we're finished, abort
+# Vitis or Vivado in the PATH when we're finished, abort
 TOOLS_ROOT=${TOOLS_ROOT:-'/tools'}
 
-# For now, we just set this, but should be an argument later, along with any
-# other arguments to pass along to the Vivado loader
-vivado_version='2022.1'
+# Set the default version of Vivado
+vivado_version=${1:-2022.1}
 
 # Vivado hard codes some paths in some shell scripts when it is installed, so we
 # duplicate that work here, but in a portable fashion (e.g., it is installed on
@@ -58,6 +62,12 @@ export XILINX_VIVADO
 export XILINX_HLS
 export PATH
 
+# Vivado uses these two variables (MYVIVADO is deprecated I think) to apply
+# runtime patches, which I do not want to load as part of a default
+# configuration
+unset XILINX_PATH
+unset MYVIVADO
+
 # Also, to support the fragility that is the Vivado toolstack, export some more
 # stuff so that we can get more information about what is potentially being
 # broken under the hood
@@ -68,6 +78,7 @@ export LIBGL_DEBUG="verbose"
 # variables that the Vivado loader thinks might be useful
 export RDI_VERBOSE="True"
 
+# Now check that these executables are in PATH and if they aren't exit out
 command -v vivado >/dev/null 2>&1 || \
   { err "Vivado not found in PATH"; exit 1; }
 command -v vitis_hls >/dev/null 2>&1 || \
@@ -78,10 +89,9 @@ command -v vitis_hls >/dev/null 2>&1 || \
 mkdir -pv "${HOME}/vivado-proj/${vivado_version}"
 # Change the working directory since Vivado tends to help by dumping things in
 # inconvenient places
-pushd "${HOME}/vivado-proj/${vivado_version}" || \
-  { err "Could not change working directory"; exit 1; }
+pushd "${HOME}/vivado-proj/${vivado_version}" >/dev/null 2>&1
 
-exec vivado -mode gui -nolog -nojournal
+vivado -mode gui -nolog -nojournal
 # Return to the previous location
-popd
+popd >/dev/null 2>&1
 
