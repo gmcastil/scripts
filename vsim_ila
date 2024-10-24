@@ -13,19 +13,19 @@ if ! check_modelsim; then
     exit 1
 fi
 
-vcd_file="$1"
-if [[ ! -f "$vcd_file" ]]; then
+vcd_file="${1}"
+if [[ ! -f "${vcd_file}" ]]; then
     err "ILA capture file not found"
     exit 1
 fi
 
 wlf_file="${vcd_file%.vcd}.wlf"
-vcd2wlf "$vcd_file" "$wlf_file"
+vcd2wlf "${vcd_file}" "${wlf_file}"
 
-if [[ ! -f "$wlf_file" ]]; then
+if [[ ! -f "${wlf_file}" ]]; then
     err "Could not convert VCD to WLF file"
     exit 1
 fi
 
-exec vsim -view "$wlf_file"
+exec vsim -view "${wlf_file}"
 
