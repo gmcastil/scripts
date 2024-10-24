@@ -90,8 +90,11 @@ mkdir -pv "${HOME}/vivado-proj/${vivado_version}"
 # Change the working directory since Vivado tends to help by dumping things in
 # inconvenient places
 pushd "${HOME}/vivado-proj/${vivado_version}" >/dev/null 2>&1
+vivado -mode gui -nolog -nojournal &
+vivado_pid="$!"
+printf 'Status: Vivado %s launched with PID %0d\n' >&1 "${vivado_version}" "${vivado_pid}"
 
-vivado -mode gui -nolog -nojournal
 # Return to the previous location
 popd >/dev/null 2>&1
+
 
