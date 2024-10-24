@@ -84,17 +84,14 @@ command -v vivado >/dev/null 2>&1 || \
 command -v vitis_hls >/dev/null 2>&1 || \
   { err "Vitis HLS not found in PATH"; exit 1; }
 
-# Xilinx creates these `vivado_pid*.str` files that wind up littering the
-# filesystem, so change to a different directory if we can before launching
-# Vivado in the background
+# Vivado projects should all be built and stored in locations that are version
+# specific
 mkdir -pv "${HOME}/vivado-proj/${vivado_version}"
 # Change the working directory since Vivado tends to help by dumping things in
 # inconvenient places
 pushd "${HOME}/vivado-proj/${vivado_version}" >/dev/null 2>&1
-vivado -mode gui -nolog -nojournal &
-vivado_pid="$!"
-printf 'Status: Vivado %s launched with PID %0d\n' >&1 "${vivado_version}" "${vivado_pid}"
 
+vivado -mode gui -nolog -nojournal
 # Return to the previous location
 popd >/dev/null 2>&1
 
