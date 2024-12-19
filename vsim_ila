@@ -25,7 +25,8 @@ vcd2wlf "${vcd_file}" "${wlf_file}"
 if [[ ! -f "${wlf_file}" ]]; then
     err "Could not convert VCD to WLF file"
     exit 1
+else
+    printf 'Converted WLF here: %s\n' "$(readlink -f "${wlf_file}")"
+    exit 0
 fi
-
-exec vsim -view "${wlf_file}"
 

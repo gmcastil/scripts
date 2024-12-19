@@ -80,8 +80,8 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     return 1
 fi
 
-# Make sure that the script we're going to fire up Vivado with exists
-# Hardware server startup script to call Vivado with
+# Make sure that the hardware server startup script we're going to fire
+# up Vivado with exists
 script_name="$(realpath "${0}")"
 scripts_dir="$(dirname "${script_name}")"
 hw_server_tcl="${scripts_dir}/start_hw_server.tcl"
