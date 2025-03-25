@@ -15,8 +15,12 @@ fi
 # Vitis or Vivado in the PATH when we're finished, abort
 TOOLS_ROOT=${TOOLS_ROOT:-'/tools'}
 
-# Set the default version of Vivado
-vivado_version=${1:-2022.1}
+# First positional argument is the Vivado version. Could check this for version
+# specific stuff if desired, but if it isn't provided or doesn't exist, the rest
+# of the script should bomb out.
+vivado_version="${1}"
+# Then we'll forward the rest to the actual Vivado executable
+shift
 
 # Vivado hard codes some paths in some shell scripts when it is installed, so we
 # duplicate that work here, but in a portable fashion (e.g., it is installed on
@@ -90,7 +94,7 @@ mkdir -pv "${HOME}/vivado-proj/${vivado_version}"
 # Change the working directory since Vivado tends to help by dumping things in
 # inconvenient places
 pushd "${HOME}/vivado-proj/${vivado_version}" >/dev/null 2>&1
-vivado -mode gui -nolog &
+vivado "${@}" &
 vivado_pid="$!"
 printf 'Status: Vivado %s launched with PID %0d\n' >&1 "${vivado_version}" "${vivado_pid}"
 
