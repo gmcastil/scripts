@@ -17,7 +17,6 @@ err () {
 replace_path () {
     local xpr_path
     local xpr_filename
-    local path_attrib
 
     xpr_path="${1}"
     if [[ ! -f "${xpr_path}" ]]; then
@@ -27,7 +26,7 @@ replace_path () {
 
     # Want to print out what we matched with (Xilinx keeps changing this string
     # too - they added the "Product" attribute by 2024)
-    matched_string=$(grep -oE '<Project Product="Vivado" Version="[0-9]+" Minor="[0-9]+" Path="[^"]*">' "${xpr_path}")
+    matched_string="$(grep ^\<Project "${xpr_path}")"
     if [[ -n "${matched_string}" ]]; then
         printf 'Matched:  %s\n' "${matched_string}" >&1
     else
@@ -35,14 +34,11 @@ replace_path () {
         return 1
     fi
 
-    # Replace the path attribute
-    xpr_filename="$(basename "${xpr_path}")"
     # shellcheck disable=SC2016
-    path_attrib='$PPRDIR/'"${xpr_filename}"
-    sed -i -E 's|(Project Product="Vivado" Version="[0-9]+" Minor="[0-9]+" Path=")[^"]*(")|\1'"${path_attrib}"'\2|' "${xpr_path}"
+    sed -i '/^<Project /s|\(Path="\).*/\([^/"]*\)"|\1\$PPRDIR/\2"|' "${xpr_path}"
 
     # Now print out what was matched
-    replaced_string=$(grep -oE '<Project Product="Vivado" Version="[0-9]+" Minor="[0-9]+" Path="[^"]*">' "${xpr_path}")
+    replaced_string="$(grep ^\<Project "${xpr_path}")"
     if [[ -n "${replaced_string}" ]]; then
         printf 'Replaced: %s\n' "${replaced_string}" >&1
     else
