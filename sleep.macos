@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Sleep and wakeup scripts for use with sleepcatcher on Mac OS.  To use, install
+# sleepcatcher and blueutil with something like `brew install sleepcatcher` and
+# `brew install blueutil`.
+
+PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+PATH="/opt/homebrew/bin:/opt/homebrew/sbin:${PATH}"
+export PATH
+
+# Disables the bluetooth interface, if currently enabld. Returns 1 if
+# unable to set bluetooth state or blueutil not installed.
+function disable_bluetooth () {
+    local retval
+
+    if ! command -v blueutil >/dev/null 2>&1; then
+        printf '%s\n' "Cannot control bluetooth. Check PATH or install blueutil" >&2
+        return 1
+    fi
+
+    retval=0
+    if [[ "$(blueutil --power)" == 1 ]]; then
+        printf '%s' "Disabling bluetooth..."
+        if blueutil --power 0; then
+            printf 'OK\n'
+        else
+            printf 'FAIL\n'
+            retval=1
+        fi
+    fi
+    return "${retval}"
+}
+
+disable_bluetooth
+
