@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# Run various versions of Vitis with a sanely defined environment and useful
+# debugging options
+
+script_name="$(realpath "${0}")"
+scripts_dir="$(dirname "${script_name}")"
+if ! source "${scripts_dir}/common.sh" >/dev/null 2>&1; then
+    printf '%s\n' "Error: Could not import common functions" >&2
+    exit 1
+fi
+
+# We require this environment variable to be set by the parent environment or
+# default to something common, try the best to find it, and if we cannot find a
+# Vitis or Vivado in the PATH when we're finished, abort
+TOOLS_ROOT=${TOOLS_ROOT:-'/tools'}
+
+# First positional argument is the Vivado version. Could check this for version
+# specific stuff if desired, but if it isn't provided or doesn't exist, the rest
+# of the script should bomb out.
+vivado_version="${1}"
+# Then we'll forward the rest to the actual Vivado executable
+shift
+
+# Vivado hard codes some paths in some shell scripts when it is installed, so we
+# duplicate that work here, but in a portable fashion (e.g., it is installed on
+# an NFS share and installed at /opt on the NFS server but the share is mounted
+# at /tools). We are essentially mimicing the outcome of these files
+
+# cat "${TOOLS_ROOT}/Xilinx/Vivado/2022.1/.settings64-Vivado.sh"
+# cat "${TOOLS_ROOT}/Xilinx/Vitis_HLS/2022.1/.settings64-Vitis_HLS.sh"
+# cat "${TOOLS_ROOT}/Xilinx/DocNav/.settings64-DocNav.sh"
+
+# Xilinx may require these to be exported to the parent environment
+XILINX_VITIS="${TOOLS_ROOT}/Xilinx/Vitis/${vivado_version}"
+XILINX_VIVADO="${TOOLS_ROOT}/Xilinx/Vivado/${vivado_version}"
+XILINX_HLS="${TOOLS_ROOT}/Xilinx/Vitis_HLS/${vivado_version}"
+
+ok_to_export=0
+# Vivado expects this to have been exported
+if [[ ! -d "${XILINX_VIVADO}/bin" ]]; then
+  err "Directory not found: ${XILINX_VIVADO}/bin"
+  ok_to_export=1
+else
+  PATH="${XILINX_VIVADO}/bin:${PATH}"
+fi
+# Vitis expects this
+if [[ ! -d "${XILINX_HLS}/bin" ]]; then
+  err "Directory not found: ${XILINX_HLS}/bin"
+  ok_to_export=1
+else
+  PATH="${XILINX_HLS}/bin:${PATH}"
+fi
+if [[ ! -d "${TOOLS_ROOT}/Xilinx/DocNav" ]]; then
+  err "Directory not found: ${TOOLS_ROOT}/Xilinx/DocNav"
+  ok_to_export=1
+else
+  PATH="${TOOLS_ROOT}/Xilinx/DocNav:${PATH}"
+fi
+
+if [[ "${ok_to_export}" -ne 0 ]]; then
+  err "Xilinx directories not found. Check TOOLS_ROOT value."
+  exit 1
+fi
+
+export XILINX_VITIS
+export XILINX_VIVADO
+export XILINX_HLS
+export PATH
+
+# Vivado uses these two variables (MYVIVADO is deprecated I think) to apply
+# runtime patches, which I do not want to load as part of a default
+# configuration
+unset XILINX_PATH
+unset MYVIVADO
+
+# Also, to support the fragility that is the Vivado toolstack, export some more
+# stuff so that we can get more information about what is potentially being
+# broken under the hood
+
+# This may potentially be useful if you see strange graphics related errors
+export LIBGL_DEBUG="verbose"
+# This should always be turned on, since it enables dumping out all the shell
+# variables that the Vivado loader thinks might be useful
+export RDI_VERBOSE="True"
+
+# Now check that these executables are in PATH and if they aren't exit out
+command -v vitis >/dev/null 2>&1 || \
+  { err "Vitis not found in PATH"; exit 1; }
+command -v vitis_hls >/dev/null 2>&1 || \
+  { err "Vitis HLS not found in PATH"; exit 1; }
+
+# Vitis projects should all be built and stored in locations that are version
+# specific
+mkdir -pv "${HOME}/vitis-proj/${vivado_version}"
+# Change the working directory since Vivado tends to help by dumping things in
+# inconvenient places
+pushd "${HOME}/vitis-proj/${vivado_version}" >/dev/null 2>&1 || exit 1
+vitis "${@}" &
+vitis_pid="$!"
+printf 'Status: Vitis %s launched with PID %0d\n' >&1 "${vivado_version}" "${vitis_pid}"
+
+# Return to the previous location
+popd >/dev/null 2>&1 || exit 1
+
