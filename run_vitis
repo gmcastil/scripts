@@ -42,7 +42,7 @@ if [[ ! -d "${XILINX_VIVADO}/bin" ]]; then
   err "Directory not found: ${XILINX_VIVADO}/bin"
   ok_to_export=1
 else
-  PATH="${XILINX_VIVADO}/bin:${PATH}"
+  PATH="${XILINX_VITIS}/bin:${XILINX_VIVADO}/bin:${PATH}"
 fi
 # Vitis expects this
 if [[ ! -d "${XILINX_HLS}/bin" ]]; then
@@ -74,10 +74,31 @@ export PATH
 unset XILINX_PATH
 unset MYVIVADO
 
+# Many newer version of Vitis require hacks to the dynamic linker path to get
+# around some bad dependancies. This is almost certainly going to get nastier
+# with different versions.
+case "${vivado_version}" in
+
+    "2024.2")
+        cmake_ver="3.24.2"
+        ;;
+    "2024.1")
+        cmake_ver="3.24.2"
+        ;;
+    *)
+        cmake_ver="3.24.2"
+        ;;
+esac
+
+cmake_ld_path="${TOOLS_ROOT}/Xilinx/Vitis/${vivado_version}/tps/lnx64/cmake-${cmake_ver}/libs/Rhel/9"
+
+LD_LIBRARY_PATH="${cmake_ld_path}:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH
+
 # Also, to support the fragility that is the Vivado toolstack, export some more
 # stuff so that we can get more information about what is potentially being
 # broken under the hood
-
+#
 # This may potentially be useful if you see strange graphics related errors
 export LIBGL_DEBUG="verbose"
 # This should always be turned on, since it enables dumping out all the shell
@@ -96,7 +117,7 @@ mkdir -pv "${HOME}/vitis-proj/${vivado_version}"
 # Change the working directory since Vivado tends to help by dumping things in
 # inconvenient places
 pushd "${HOME}/vitis-proj/${vivado_version}" >/dev/null 2>&1 || exit 1
-vitis "${@}" &
+setsid vitis "${@}" &
 vitis_pid="$!"
 printf 'Status: Vitis %s launched with PID %0d\n' >&1 "${vivado_version}" "${vitis_pid}"
 
