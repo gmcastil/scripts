@@ -2,6 +2,9 @@
 
 import sys
 import logging
+import subprocess
+import traceback
+from email.message import EmailMessage
 import ipaddress
 from typing import Optional
 from pathlib import Path
@@ -13,6 +16,46 @@ LAST_IP_FILE = Path.home() / ".lastip"
 
 logger = logging.getLogger("WAN-IP-watcher")
 
+def send_email_with_msmtp(subject: str, body: str) -> None:
+
+    import os
+
+    recipient = os.environ.get("WAN_IP_WATCHER_EMAIL")
+    if not recipient:
+        logger.error("WAN_IP_WATCHER_EMAIL environment variable not set")
+        return
+
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = "WAN IP Watcher"
+    msg['To'] = recipient
+    msg.set_content(body)
+
+    try:
+        subprocess.run(["msmtp", recipient], input=msg.as_bytes(), check=True)
+        logger.info("Notification email sent via msmtp")
+        return
+    except subprocess.CalledProcessError as e:
+        logger.error("Failed to send email via msmtp", exc_info=e)
+
+def notify_ip_change(current_ip: str, last_ip: Optional[str]) -> None:
+    subject = "WAN IP Address Changed"
+    body = (
+            f"WAN IP address changed\n\n"
+            f"  {last_ip or 'None'} -> {current_ip}\n"
+    ) 
+    send_email_with_msmtp(subject, body)
+
+def notify_failure(context: str, exc: Exception) -> None:
+    subject = f"WAN IP Watcher Error: {context}"
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    body = (
+            f"A failure occurred during '{context}'.\n\n"
+            f"Exception: {type(exc).__name__}: {exc}\n\n"
+            f"Traceback:\n{tb}"
+    )
+    send_email_with_msmtp(subject, body)
+
 def setup_logging(debug=False) -> None:
     logger.setLevel(logging.DEBUG if debug else logging.INFO)
 
@@ -23,46 +66,34 @@ def setup_logging(debug=False) -> None:
     logger.addHandler(handler)
 
 def get_current_ip() -> str:
+    logger.debug(f"Getting current IP address from {IPIFY_URL}")
     response = get(IPIFY_URL)
+    response.raise_for_status()
     ip = response.text.strip()
     logger.debug(f"Raw IP response: {ip}")
 
-    try:
-        ipaddress.ip_address(ip)
-    except ValueError:
-        raise RuntimeError(f"Invalid IP address received: {ip}")
+    # Raises an exception if this is no an IP address shape
+    ipaddress.ip_address(ip)
     return ip
 
 def get_last_ip() -> Optional[str]:
 
     if not LAST_IP_FILE.exists():
         # File doesn't exist - first run
-        logger.info("IP file not found. Assuming initial run.")
-        try:
-            LAST_IP_FILE.touch(exist_ok=True)
-            logger.info(f"Created last IP file at {LAST_IP_FILE}")
-            # If the ~/.lastip had to be created, that's ok, we just indicate it with None
-            return None
-        except Exception as e:
-            logger.error(f"Failed to create last IP file at {LAST_IP_FILE}", exc_info=e)
-            raise
+        logger.info(f"Last IP file not found. Created last IP file at {LAST_IP_FILE}")
+        LAST_IP_FILE.touch(exist_ok=True)
+        # If the ~/.lastip had to be created, that's ok, we just indicate it with None
+        return None
     else:
         # File exists so get the IP address and return it
         logger.debug("IP file found. Reading IP address.")
-        try:
-            ip = LAST_IP_FILE.read_text().strip()
-            logger.debug(f"Raw IP from .lastip: {ip}")
-        except Exception as e:
-            logger.error(f"Failed to read last IP file at {LAST_IP_FILE}", exc_info=e)
-            raise
+        ip = LAST_IP_FILE.read_text().strip()
+        logger.debug(f"Raw IP from .lastip: {ip}")
 
     # Now that we actually have something, we verify it's shaped like an
     # IP address before we return it. It has to be valid at this point or its an
     # exception, since we already covered the case of the file not existing yet.
-    try:
-        ipaddress.ip_address(ip)
-    except ValueError:
-        raise RuntimeError(f"Invalid IP address received: {ip}")
+    ipaddress.ip_address(ip)
     return ip
 
 def update_last_ip_file(current_ip) -> None:
@@ -73,15 +104,9 @@ def update_last_ip_file(current_ip) -> None:
         raise FileNotFoundError(f"Expected {LAST_IP_FILE} to exist before writing, but it does not")
 
     # Trample the existing IP address with the new one
-    try:
-        LAST_IP_FILE.write_text(current_ip + "\n")
-        logger.debug(f"Wrote current IP address to {LAST_IP_FILE}")
-        return
-    except Exception as e:
-        logger.error(f"Failed to write last IP file at {LAST_IP_FILE}", exc_info=e)
-        raise
+    LAST_IP_FILE.write_text(current_ip + "\n")
 
-def main(args):
+def main():
 
     # Initialize logging system and streams
     setup_logging(debug=True)
@@ -91,8 +116,7 @@ def main(args):
     try:
         current_ip = get_current_ip()
     except Exception as e:
-        logger.error("Failed to get current IP address", exc_info=e)
-        # TODO Send an email here with an info - normal operation
+        notify_failure("Failed to get current IP address", e)
         return 1
     logger.debug(f"Obtained current IP address: {current_ip}")
 
@@ -101,8 +125,7 @@ def main(args):
     try:
         last_ip = get_last_ip()
     except Exception as e:
-        logger.error(f"Failed to get last IP address", exc_info=e)
-        # TODO Should send an email here with a warning
+        notify_failure("Failed to get last IP address", e)
         return 1
     logger.debug(f"Obtained last IP address: {last_ip}")
 
@@ -119,13 +142,16 @@ def main(args):
     logger.info(f"Updating {LAST_IP_FILE} with IP address: {current_ip}")
     try:
         update_last_ip_file(current_ip)
-        # TODO Send an email here with an info - normal operation
     except Exception as e:
-        logger.error(f"Failed to update local file with new IP address")
-        # TODO Should send an email here with a warning
+        notify_failure("Failed to update local file with new IP address", e)
         return 1
-    logger.debug(f"Updated {LAST_IP_FILE} with IP address: {current_ip}")
+
+    try:
+        notify_ip_change(current_ip, last_ip)
+    except Exception as e:
+        logger.error("Failed to send IP change notification - vaya con dios!", exc_info=e)
+        return 1
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
 
