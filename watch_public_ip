@@ -1,0 +1,131 @@
+#!/bin/python3
+
+import sys
+import logging
+import ipaddress
+from typing import Optional
+from pathlib import Path
+
+from requests import get
+
+IPIFY_URL = 'https://api.ipify.org'
+LAST_IP_FILE = Path.home() / ".lastip"
+
+logger = logging.getLogger("WAN-IP-watcher")
+
+def setup_logging(debug=False) -> None:
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
+
+    # Default is to log to stderr so we switch to sdout and later will add
+    # a file handler so we can log to stdout and a log file
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
+    logger.addHandler(handler)
+
+def get_current_ip() -> str:
+    response = get(IPIFY_URL)
+    ip = response.text.strip()
+    logger.debug(f"Raw IP response: {ip}")
+
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        raise RuntimeError(f"Invalid IP address received: {ip}")
+    return ip
+
+def get_last_ip() -> Optional[str]:
+
+    if not LAST_IP_FILE.exists():
+        # File doesn't exist - first run
+        logger.info("IP file not found. Assuming initial run.")
+        try:
+            LAST_IP_FILE.touch(exist_ok=True)
+            logger.info(f"Created last IP file at {LAST_IP_FILE}")
+            # If the ~/.lastip had to be created, that's ok, we just indicate it with None
+            return None
+        except Exception as e:
+            logger.error(f"Failed to create last IP file at {LAST_IP_FILE}", exc_info=e)
+            raise
+    else:
+        # File exists so get the IP address and return it
+        logger.debug("IP file found. Reading IP address.")
+        try:
+            ip = LAST_IP_FILE.read_text().strip()
+            logger.debug(f"Raw IP from .lastip: {ip}")
+        except Exception as e:
+            logger.error(f"Failed to read last IP file at {LAST_IP_FILE}", exc_info=e)
+            raise
+
+    # Now that we actually have something, we verify it's shaped like an
+    # IP address before we return it. It has to be valid at this point or its an
+    # exception, since we already covered the case of the file not existing yet.
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        raise RuntimeError(f"Invalid IP address received: {ip}")
+    return ip
+
+def update_last_ip_file(current_ip) -> None:
+
+    # This should never happen -  by the time this function is called, the stash file
+    # will have already been created or been proven to exist
+    if not LAST_IP_FILE.exists():
+        raise FileNotFoundError(f"Expected {LAST_IP_FILE} to exist before writing, but it does not")
+
+    # Trample the existing IP address with the new one
+    try:
+        LAST_IP_FILE.write_text(current_ip + "\n")
+        logger.debug(f"Wrote current IP address to {LAST_IP_FILE}")
+        return
+    except Exception as e:
+        logger.error(f"Failed to write last IP file at {LAST_IP_FILE}", exc_info=e)
+        raise
+
+def main(args):
+
+    # Initialize logging system and streams
+    setup_logging(debug=True)
+
+    # Get current IP address from some external monitor
+    logger.debug(f"Obtaining current IP address from {IPIFY_URL}")
+    try:
+        current_ip = get_current_ip()
+    except Exception as e:
+        logger.error("Failed to get current IP address", exc_info=e)
+        # TODO Send an email here with an info - normal operation
+        return 1
+    logger.debug(f"Obtained current IP address: {current_ip}")
+
+    # Get last IP address from local storage
+    logger.debug(f"Obtaining last IP address from {LAST_IP_FILE}")
+    try:
+        last_ip = get_last_ip()
+    except Exception as e:
+        logger.error(f"Failed to get last IP address", exc_info=e)
+        # TODO Should send an email here with a warning
+        return 1
+    logger.debug(f"Obtained last IP address: {last_ip}")
+
+    # If we've reached this point without exceptions, current IP address
+    # is valid and last IP address is either valid or None
+    if current_ip == last_ip:
+        logger.debug(f"WAN IP address unchanged")
+        return 0
+
+    # From here on, the rest of main() assumes we had an IP update
+    logger.info(f"WAN IP address changed {last_ip} -> {current_ip}")
+
+    # Update the local stash file
+    logger.info(f"Updating {LAST_IP_FILE} with IP address: {current_ip}")
+    try:
+        update_last_ip_file(current_ip)
+        # TODO Send an email here with an info - normal operation
+    except Exception as e:
+        logger.error(f"Failed to update local file with new IP address")
+        # TODO Should send an email here with a warning
+        return 1
+    logger.debug(f"Updated {LAST_IP_FILE} with IP address: {current_ip}")
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
+
