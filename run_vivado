@@ -88,17 +88,26 @@ command -v vivado >/dev/null 2>&1 || \
 command -v vitis_hls >/dev/null 2>&1 || \
   { err "Vitis HLS not found in PATH"; exit 1; }
 
-# Vivado projects should all be built and stored in locations that are version
-# specific
-mkdir -pv "${HOME}/vivado-proj/${vivado_version}"
-# Change the working directory since Vivado tends to help by dumping things in
-# inconvenient places
-pushd "${HOME}/vivado-proj/${vivado_version}" >/dev/null 2>&1
-setsid vivado "${@}" &
-vivado_pid="$!"
-printf 'Status: Vivado %s launched with PID %0d\n' >&1 "${vivado_version}" "${vivado_pid}"
-
-# Return to the previous location
-popd >/dev/null 2>&1
-
+# The console mode that is intended here is that we launch Vivado from whatever
+# the current location is, with no transcript or journal polluting the
+# filesystem. For GUI mode, we launch from a version specific location.
+if [[ "${1}" == "-c" ]]; then
+    setsid vivado -mode tcl -nolog -nojournal
+    exit "$?"
+else
+    # Vivado projects should all be built and stored in locations that are version
+    # specific
+    mkdir -pv "${HOME}/vivado-proj/${vivado_version}"
+    # Change the working directory since Vivado tends to help by dumping things in
+    # inconvenient places
+    pushd "${HOME}/vivado-proj/${vivado_version}" >/dev/null 2>&1 || \
+        { err "Could not change current directory"; exit 1; }
+    setsid vivado "${@}" &
+    vivado_pid="$!"
+    printf 'Status: Vivado %s launched with PID %0d\n' >&1 "${vivado_version}" "${vivado_pid}"
+    # Return to the previous location
+    popd >/dev/null 2>&1 || \
+        { err "Could not change current directory"; exit 1; }
+    exit 0
+fi
 
