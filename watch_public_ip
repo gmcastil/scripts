@@ -124,6 +124,10 @@ def main():
     logger.debug(f"Obtaining last IP address from {LAST_IP_FILE}")
     try:
         last_ip = get_last_ip()
+    except ValueError:
+        logger.debug("Last IP file found but contents corrupt. Deleting.")
+        Path.unlink(LAST_IP_FILE)
+        last_ip = None
     except Exception as e:
         notify_failure("Failed to get last IP address", e)
         return 1
