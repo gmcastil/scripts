@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from collections import Counter
+from typing import Mapping, Literal, Optional
+
+Severity = Literal["info", "warning", "critical", "error"]
+Stage = Literal["synthesis", "implementation"]
+
+@dataclass(frozen=True)
+class LogSummary:
+    stage: Stage
+    file: Path
+    severity_counts: Mapping[Severity, int]             # e.g. {"error": 2, ...}
+    code_counts: Mapping[Severity, Mapping[str, int]]   # e.g. {"error": {"Synth 8-6155": 3}, ...}
+    msg_by_code: Mapping[str, str]                      # e.g. {"Synth 8-6155": "Synthesis warnings aplenty!"}
+
+# Keys to use in message counters
+SEVERITIES: tuple[Severity, ...] = ("info", "warning", "critical", "error")
+
+# Column widths for displaying output text
+MAX_OUTPUT_WIDTH = 140
+MAX_LABEL_WIDTH = 40
+MAX_COUNT_WIDTH = 6
+MAX_DESC_WIDTH = MAX_OUTPUT_WIDTH - MAX_LABEL_WIDTH - MAX_COUNT_WIDTH
+assert MAX_DESC_WIDTH > 0
+
+def detect_stage_from_suffix(path: Path) -> Optional[Stage]:
+    suf = path.suffix.lower()
+    if suf == ".vds":
+        return "synthesis"
+    if suf == ".vdi":
+        return "implementation"
+    return None
+
+
+def detect_severity(line: str) -> Optional[Severity]:
+    "Returns the type of severity that a line contains, otherwise None"
+    if line.startswith("INFO:"):
+        return "info"
+    if line.startswith("CRITICAL WARNING:"):
+        return "critical"
+    if line.startswith("WARNING:"):
+        return "warning"
+    if line.startswith("ERROR:"):
+        return "error"
+
+    return None
+
+def get_msg_code(line: str) -> tuple[Optional[str], Optional[str]]:
+    """Returns the bracketed message code and the rest of the line as a string"""
+
+    # Find the starting point of stuff after the first colon (e.g., INFO: [Synth 8-6155])
+    i = line.find(":")
+    if i == -1:
+        return None, None
+    # Find the starting point of the first bracket after the first colon (e.g., INFO: [Synth 8-6155])
+    j = line.find("[", i + 1)
+    if j == -1:
+        return None, None
+    # Find the ending point of the first closing bracket (e.g., INFO: [Synth 8-6155])
+    k = line.find("]", j + 1)
+    if k == -1:
+        return None, None
+    # Return the sliced string (e.g., "Synth-8-6155")
+    code = line[j + 1 : k].strip()
+    text = line[k + 1 :].strip()
+    return code, text
+
+def summarize_log(path: Path, stage: Stage) -> LogSummary:
+    """Parse a Vivado log file in a single streaming pass and collect summary statistics.
+
+    Args:
+        path: Path to the log file (.vds for synthesis, .vdi for implementation).
+        stage: Compilation stage corresponding to the log file ("synthesis" or "implementation").
+
+    Returns:
+        A LogSummary object containing:
+          - file and stage metadata
+          - severity_counts: total count of each severity across the log
+          - code_counts: per-severity counts of each unique message code
+          - msg_by_code: first message text observed for each unique code
+    """
+    with open(path, "r") as lines:
+        # Use a single counter, keyed by severity type and initialized to zero
+        severity_counts: Counter[Severity] = Counter({s: 0 for s in SEVERITIES})
+        # Use a single counter for each severity type (so we can bin by message code)
+        code_counts: dict[Severity, Counter[str]] = {s: Counter() for s in SEVERITIES}
+
+        msg_by_code: dict[str, str] = {}
+
+        for line in lines:
+            level = detect_severity(line)
+
+            # Ignore lines that don't have a severity associated with them
+            if not level:
+                continue
+
+            # Increment the gross counts of severity
+            severity_counts[level] += 1
+
+            # Extract the message code and message string (e.g., [Synth 100-1234]), then increment the counter and
+            # store the message text (message texts are ignorant of whether they were info or errors, etc)
+            msg_code, msg_text = get_msg_code(line)
+            if msg_code:
+                code_counts[level][msg_code] += 1
+                if msg_code not in msg_by_code and msg_text:
+                    msg_by_code[msg_code] = msg_text
+
+    return LogSummary(
+        stage=stage,
+        file=path,
+        severity_counts=dict(severity_counts),
+        code_counts={s: dict(c) for s, c in code_counts.items()},
+        msg_by_code=msg_by_code
+    )
+
+def summarize_synthesis(path: Path) -> LogSummary:
+    return summarize_log(path, "synthesis")
+
+def summarize_implementation(path: Path) -> LogSummary:
+    return summarize_log(path, "implementation")
+
+def format_row(
+    label: str,
+    count: int = 0,
+    desc: str = "",
+    lw: int = MAX_LABEL_WIDTH,
+    cw: int = MAX_COUNT_WIDTH,
+    mw: int = MAX_DESC_WIDTH,
+    add_colon: bool = True,
+) -> str:
+    """Format a single 3-column row (label, count, description) with some truncation"""
+
+    if add_colon and label and not label.endswith(":"):
+        label = label + ":"
+
+    # Trim description if too long
+    if len(desc) > mw:
+        desc = desc[: mw - 3] + "..."
+
+    return f"{label:<{lw}}{count:<{cw}}{desc}\n"
+
+def format_summary(log: LogSummary) -> str:
+
+    lines = []
+
+    # Front matter
+    lines.append(f"\n")
+    lines.append(f"{'Log File:':<{MAX_LABEL_WIDTH}}{log.file}\n")
+    lines.append(f"{'Type:':<{MAX_LABEL_WIDTH}}{log.stage}\n")
+
+    # Now summarize the severity counts
+    lines.append(f"\n")
+    lines.append(f"Message Summary:\n")
+    lines.append(format_row("  Info", log.severity_counts.get('info', 0)))
+    lines.append(format_row("  Warning", log.severity_counts.get('warning', 0)))
+    lines.append(format_row("  Critical Warning", log.severity_counts.get('critical', 0)))
+    lines.append(format_row("  Error", log.severity_counts.get('error', 0)))
+
+    # Now summarize the messages for each type of severity
+    for severity in SEVERITIES:
+
+        counts = log.code_counts.get(severity, {})
+        if not counts:
+            continue
+
+        # Sort by message string
+        ranked = sorted(counts.items(), key=lambda kv: kv[0])
+        total_unique = len(ranked)
+
+        lines.append(f"\n")
+        lines.append(f"{severity.upper()} (all {total_unique} unique):\n")
+
+        for code, cnt in ranked:
+            desc = log.msg_by_code.get(code, "")
+            lines.append(format_row('  ' + code, cnt, desc))
+
+    return ''.join(lines)
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Summarize Vivado synthesis or implementation logs"
+    )
+    parser.add_argument("logfile", type=Path, help="Path to Vivado log (.vds/.vdi)")
+    parser.add_argument(
+        "--stage",
+        choices=["synth", "impl"],
+        help="Override stage detection (default: infer from suffix)",
+    )
+    args = parser.parse_args()
+
+    log_path = args.logfile
+    if not log_path.exists():
+        print(f"Error: File not found: {log_path}", file=sys.stderr)
+        sys.exit(1)
+
+    stage = args.stage or detect_stage_from_suffix(log_path)
+    if stage is None:
+        print(
+            "Warning: Could not infer stage from filename; use --stage to specify",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    retval = 0
+    if stage == "synthesis":
+        log_summary: LogSummary = summarize_synthesis(log_path)
+    elif stage == "implementation":
+        log_summary: LogSummary = summarize_implementation(log_path)
+    else:
+        print(
+            "Warning: Unknown compilation stage",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print(format_summary(log_summary))
+
+    sys.exit(retval)
+
+
+if __name__ == "__main__":
+    main()
