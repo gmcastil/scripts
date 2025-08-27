@@ -188,7 +188,7 @@ def main():
     parser.add_argument("logfile", type=Path, help="Path to Vivado log (.vds/.vdi)")
     parser.add_argument(
         "--stage",
-        choices=["synth", "impl"],
+        choices=["synthesis", "implementation"],
         help="Override stage detection (default: infer from suffix)",
     )
     args = parser.parse_args()
@@ -206,7 +206,6 @@ def main():
         )
         sys.exit(1)
 
-    retval = 0
     if stage == "synthesis":
         log_summary: LogSummary = summarize_synthesis(log_path)
     elif stage == "implementation":
@@ -220,7 +219,7 @@ def main():
 
     print(format_summary(log_summary))
 
-    sys.exit(retval)
+    sys.exit(0)
 
 
 if __name__ == "__main__":
