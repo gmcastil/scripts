@@ -22,7 +22,7 @@ class LogSummary:
 SEVERITIES: tuple[Severity, ...] = ("info", "warning", "critical", "error")
 
 # Column widths for displaying output text
-MAX_OUTPUT_WIDTH = 140
+MAX_OUTPUT_WIDTH = 200
 MAX_LABEL_WIDTH = 40
 MAX_COUNT_WIDTH = 6
 MAX_DESC_WIDTH = MAX_OUTPUT_WIDTH - MAX_LABEL_WIDTH - MAX_COUNT_WIDTH
