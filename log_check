@@ -10,13 +10,19 @@ from typing import Mapping, Literal, Optional
 Severity = Literal["info", "warning", "critical", "error"]
 Stage = Literal["synthesis", "implementation"]
 
+
 @dataclass(frozen=True)
 class LogSummary:
     stage: Stage
     file: Path
-    severity_counts: Mapping[Severity, int]             # e.g. {"error": 2, ...}
-    code_counts: Mapping[Severity, Mapping[str, int]]   # e.g. {"error": {"Synth 8-6155": 3}, ...}
-    msg_by_code: Mapping[str, str]                      # e.g. {"Synth 8-6155": "Synthesis warnings aplenty!"}
+    severity_counts: Mapping[Severity, int]  # e.g. {"error": 2, ...}
+    code_counts: Mapping[
+        Severity, Mapping[str, int]
+    ]  # e.g. {"error": {"Synth 8-6155": 3}, ...}
+    msg_by_code: Mapping[
+        str, str
+    ]  # e.g. {"Synth 8-6155": "Synthesis warnings aplenty!"}
+
 
 # Keys to use in message counters
 SEVERITIES: tuple[Severity, ...] = ("info", "warning", "critical", "error")
@@ -27,6 +33,7 @@ MAX_LABEL_WIDTH = 40
 MAX_COUNT_WIDTH = 6
 MAX_DESC_WIDTH = MAX_OUTPUT_WIDTH - MAX_LABEL_WIDTH - MAX_COUNT_WIDTH
 assert MAX_DESC_WIDTH > 0
+
 
 def detect_stage_from_suffix(path: Path) -> Optional[Stage]:
     suf = path.suffix.lower()
@@ -50,6 +57,7 @@ def detect_severity(line: str) -> Optional[Severity]:
 
     return None
 
+
 def get_msg_code(line: str) -> tuple[Optional[str], Optional[str]]:
     """Returns the bracketed message code and the rest of the line as a string"""
 
@@ -69,6 +77,7 @@ def get_msg_code(line: str) -> tuple[Optional[str], Optional[str]]:
     code = line[j + 1 : k].strip()
     text = line[k + 1 :].strip()
     return code, text
+
 
 def summarize_log(path: Path, stage: Stage) -> LogSummary:
     """Parse a Vivado log file in a single streaming pass and collect summary statistics.
@@ -115,14 +124,17 @@ def summarize_log(path: Path, stage: Stage) -> LogSummary:
         file=path,
         severity_counts=dict(severity_counts),
         code_counts={s: dict(c) for s, c in code_counts.items()},
-        msg_by_code=msg_by_code
+        msg_by_code=msg_by_code,
     )
+
 
 def summarize_synthesis(path: Path) -> LogSummary:
     return summarize_log(path, "synthesis")
 
+
 def summarize_implementation(path: Path) -> LogSummary:
     return summarize_log(path, "implementation")
+
 
 def format_row(
     label: str,
@@ -144,8 +156,8 @@ def format_row(
 
     return f"{label:<{lw}}{count:<{cw}}{desc}\n"
 
-def format_summary(log: LogSummary) -> str:
 
+def format_summary(log: LogSummary) -> str:
     lines = []
 
     # Front matter
@@ -156,14 +168,15 @@ def format_summary(log: LogSummary) -> str:
     # Now summarize the severity counts
     lines.append(f"\n")
     lines.append(f"Message Summary:\n")
-    lines.append(format_row("  Info", log.severity_counts.get('info', 0)))
-    lines.append(format_row("  Warning", log.severity_counts.get('warning', 0)))
-    lines.append(format_row("  Critical Warning", log.severity_counts.get('critical', 0)))
-    lines.append(format_row("  Error", log.severity_counts.get('error', 0)))
+    lines.append(format_row("  Info", log.severity_counts.get("info", 0)))
+    lines.append(format_row("  Warning", log.severity_counts.get("warning", 0)))
+    lines.append(
+        format_row("  Critical Warning", log.severity_counts.get("critical", 0))
+    )
+    lines.append(format_row("  Error", log.severity_counts.get("error", 0)))
 
     # Now summarize the messages for each type of severity
     for severity in SEVERITIES:
-
         counts = log.code_counts.get(severity, {})
         if not counts:
             continue
@@ -177,9 +190,10 @@ def format_summary(log: LogSummary) -> str:
 
         for code, cnt in ranked:
             desc = log.msg_by_code.get(code, "")
-            lines.append(format_row('  ' + code, cnt, desc))
+            lines.append(format_row("  " + code, cnt, desc))
 
-    return ''.join(lines)
+    return "".join(lines)
+
 
 def main():
     parser = argparse.ArgumentParser(
