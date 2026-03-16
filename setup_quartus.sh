@@ -26,7 +26,7 @@ if [[ "$LANG" != "en_US.UTF-8" ]]; then
 fi
 LC_ALL="en_US.UTF-8"
 
-LM_LICENSE_FILE="$HOME/licenses/Altera-1-PR1TEF_License.dat"
+LM_LICENSE_FILE="$HOME/licenses/LR-259809_License.dat"
 # Ensure that the license file exists
 if [[ ! -f "$LM_LICENSE_FILE" ]]; then
     err "License file not found at $LM_LICENSE_FILE"
@@ -40,6 +40,9 @@ quartus_ver=${1:-22.2}
 case "$quartus_ver" in
     "22.2")
         QUARTUS_ROOTDIR="${TOOLS_ROOT}/Intel/FPGA/22.2/quartus"
+        ;;
+    "25.1.1")
+        QUARTUS_ROOTDIR="${TOOLS_ROOT}/Intel/FPGA/25.1.1/quartus"
         ;;
     *)
         echo "Unsupported Quartus version: $quartus_ver"
