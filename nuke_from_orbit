@@ -90,10 +90,6 @@ def kill_all_pids(pids: list[int]) -> None:
 
 def show_dry_run(pids: list[int]) -> None:
     """Shows the command line and PID of what we would kill"""
-    if not pids:
-        print(f"No matching PIDS found")
-        return
-
     print(f"{'PID':<12}Process")
     print(f"======      =======")
     for pid in pids:
@@ -141,6 +137,8 @@ def main() -> int:
         show_dry_run(pids)
     else:
         kill_all_pids(pids)
+        suffix = "es" if len(pids) > 1 else ""
+        print(f"Killed {len(pids)} process{suffix}.")
 
     return 0
 
