@@ -4,7 +4,12 @@ import argparse
 import sys
 import os
 import signal
-from time import sleep
+import time
+
+if sys.platform != "linux":
+    print(f"error: {sys.argv[0]} requires Linux (/proc filesystem)", file=sys.stderr)
+    sys.exit(1)
+
 
 PROCESS_PATTERNS = {
     "vivado": [
@@ -41,7 +46,7 @@ def get_pids_by_partial_name(name: str) -> list[int]:
     return pids
 
 
-def get_all_pids(pattern: str) -> set[int]:
+def get_all_pids(pattern: str) -> list[int]:
     """Returns all PIDs matching the provided pattern"""
     pids = []
     for name in PROCESS_PATTERNS[pattern]:
@@ -52,7 +57,7 @@ def get_all_pids(pattern: str) -> set[int]:
     my_pid = os.getpid()
     if my_pid in pids:
         pids.remove(my_pid)
-    return pids
+    return list(pids)
 
 
 def kill_pid(pid: int, nicely: bool = True) -> None:
@@ -80,8 +85,8 @@ def kill_all_pids(pids: list[int]) -> None:
     for pid in pids:
         kill_pid(pid)
 
-    # Give them some time to clean up a big
-    sleep(2)
+    # Give them some time to clean up a bit
+    time.sleep(2)
 
     # Terminate with extreme prejudice
     for pid in pids:
@@ -90,6 +95,12 @@ def kill_all_pids(pids: list[int]) -> None:
 
 def show_dry_run(pids: list[int]) -> None:
     """Shows the command line and PID of what we would kill"""
+    if not pids:
+        print(f"No matching PIDS found")
+        return
+
+    print(f"{'PID':<12}Process")
+    print(f"======      =======")
     for pid in pids:
         try:
             with open(f"/proc/{pid}/cmdline") as f:
