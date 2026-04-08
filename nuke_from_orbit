@@ -6,11 +6,6 @@ import os
 import signal
 import time
 
-if sys.platform != "linux":
-    print(f"error: {sys.argv[0]} requires Linux (/proc filesystem)", file=sys.stderr)
-    sys.exit(1)
-
-
 PROCESS_PATTERNS = {
     "vivado": [
         "vivado",
@@ -112,6 +107,13 @@ def show_dry_run(pids: list[int]) -> None:
 
 
 def main() -> int:
+
+    if not os.path.ismount("/proc"):
+        print(
+            f"Error: {sys.argv[0]} requires a mounted /proc filesystem", file=sys.stderr
+        )
+        return 1
+
     parser = argparse.ArgumentParser(
         description="Kill rogue ECAD tool processes by pattern"
     )
@@ -131,6 +133,10 @@ def main() -> int:
     args = parser.parse_args()
 
     pids = get_all_pids(args.pattern)
+    if not pids:
+        print(f"No matching processes found", file=sys.stderr)
+        return 1
+
     if args.dry_run:
         show_dry_run(pids)
     else:
