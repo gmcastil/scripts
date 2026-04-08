@@ -1,0 +1,126 @@
+#!/usr/bin/python3
+
+import argparse
+import sys
+import os
+import signal
+from time import sleep
+
+PROCESS_PATTERNS = {
+    "vivado": [
+        "vivado",
+        "hw_server",
+        "cs_server",
+        "xsdb",
+        "xsct",
+        "lnx64.0",
+        "Xilinx/Vivado",
+    ],
+}
+
+
+def get_pids_by_partial_name(name: str) -> list[int]:
+    """Returns all PIDs matching or partially matching the name provided"""
+    pids = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+
+        try:
+            with open(f"/proc/{entry}/cmdline") as f:
+                # We'll filter out PIDs that aren't ours
+                st_uid = os.stat(f"/proc/{entry}").st_uid
+                # Now match the fragment using the entire command line
+                cmdline = f.read().replace("\x00", " ").strip()
+                if name in cmdline and st_uid == os.getuid():
+                    pids.append(int(entry))
+        except OSError:
+            # Race condition here between a process finishing after
+            # listing the PIDs in /proc and when we go to open it.
+            pass
+    return pids
+
+
+def get_all_pids(pattern: str) -> list[int]:
+    """Returns all PIDs matching the provided pattern"""
+    pids = []
+    for name in PROCESS_PATTERNS[pattern]:
+        pids.extend(get_pids_by_partial_name(name))
+    return list(set(pids))
+
+
+def kill_pid(pid: int, nicely: bool = True) -> None:
+    """Send SIGTERM to a process"""
+    if nicely:
+        sig = signal.SIGTERM
+    else:
+        sig = signal.SIGKILL
+
+    try:
+        pgid = os.getpgid(pid)
+        os.killpg(pgid, sig)
+    except ProcessLookupError:
+        # Process probably already gone or killed already
+        pass
+    except PermissionError:
+        # Don't own it - shouldn't happen
+        pass
+
+
+def kill_all_pids(pids: list[int]) -> None:
+    """Kill all matching PIDs"""
+
+    # Try killing politely
+    for pid in pids:
+        kill_pid(pid)
+
+    # Give them some time to clean up a big
+    sleep(2)
+
+    # Terminate with extreme prejudice
+    for pid in pids:
+        kill_pid(pid, nicely=False)
+
+
+def show_dry_run(pids: list[int]) -> None:
+    """Shows the command line and PID of what we would kill"""
+    for pid in pids:
+        try:
+            with open(f"/proc/{pid}/cmdline") as f:
+                cmdline = f.read().replace("\x00", " ").strip()
+                print(f"{pid:<12}{cmdline}\n")
+        except OSError:
+            # Process might have died by now already
+            pass
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Kill rogue ECAD tool processes by pattern"
+    )
+    parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Show what processes would be killed",
+    )
+    parser.add_argument(
+        "pattern",
+        nargs="?",
+        default="vivado",
+        choices=PROCESS_PATTERNS.keys(),
+        help="Process name pattern to match against",
+    )
+    args = parser.parse_args()
+
+    pids = get_all_pids(args.pattern)
+    if args.dry_run:
+        show_dry_run(pids)
+    else:
+        kill_all_pids(pids)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
