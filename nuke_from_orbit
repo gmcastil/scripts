@@ -41,12 +41,18 @@ def get_pids_by_partial_name(name: str) -> list[int]:
     return pids
 
 
-def get_all_pids(pattern: str) -> list[int]:
+def get_all_pids(pattern: str) -> set[int]:
     """Returns all PIDs matching the provided pattern"""
     pids = []
     for name in PROCESS_PATTERNS[pattern]:
         pids.extend(get_pids_by_partial_name(name))
-    return list(set(pids))
+
+    pids = set(pids)
+    # Almost to a certainty, we're in here
+    my_pid = os.getpid()
+    if my_pid in pids:
+        pids.remove(my_pid)
+    return pids
 
 
 def kill_pid(pid: int, nicely: bool = True) -> None:
@@ -88,7 +94,7 @@ def show_dry_run(pids: list[int]) -> None:
         try:
             with open(f"/proc/{pid}/cmdline") as f:
                 cmdline = f.read().replace("\x00", " ").strip()
-                print(f"{pid:<12}{cmdline}\n")
+                print(f"{pid:<12}{cmdline}")
         except OSError:
             # Process might have died by now already
             pass
