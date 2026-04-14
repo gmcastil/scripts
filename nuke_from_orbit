@@ -6,6 +6,7 @@ import os
 import signal
 import time
 
+# Helpful to use `fuser -vm /tools /storage` to see what is hanging up NFS
 PROCESS_PATTERNS = {
     "vivado": [
         "vivado",
@@ -15,6 +16,11 @@ PROCESS_PATTERNS = {
         "xsct",
         "lnx64.0",
         "Xilinx/Vivado",
+    ],
+    "questa": [
+        "vish",
+        "vlm",
+        "salt_mgls_async",
     ],
 }
 
@@ -103,7 +109,6 @@ def show_dry_run(pids: list[int]) -> None:
 
 
 def main() -> int:
-
     if not os.path.ismount("/proc"):
         print(
             f"Error: {sys.argv[0]} requires a mounted /proc filesystem", file=sys.stderr
@@ -145,3 +150,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
